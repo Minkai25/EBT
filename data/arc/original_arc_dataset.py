@@ -7,7 +7,8 @@ import torch
 from torch.utils.data import Dataset
 from typing import Tuple, Set
 import numpy as np
-import hashlib
+# import hashlib
+from arc_utils import grid_to_seq, one_hot_encode_grids
 
 
 class ARCTrainDataset(Dataset):
@@ -46,7 +47,8 @@ class ARCTrainDataset(Dataset):
         for example_idx, example in enumerate(data['train']):
             input_tensor = torch.tensor(example['input'], dtype=torch.uint8, device=self.device)
             output_tensor = torch.tensor(example['output'], dtype=torch.uint8, device=self.device)
-
+            input_tensor = one_hot_encode_grids(grid_to_seq(input_tensor)).to(self.device)
+            output_tensor = one_hot_encode_grids(grid_to_seq(output_tensor)).to(self.device)
             # Add original example
             original_example = (input_tensor, output_tensor, torch.tensor(file_idx), False)  # False = not augmented
             # example_hash = self._compute_hash(input_tensor, output_tensor)
@@ -56,6 +58,8 @@ class ARCTrainDataset(Dataset):
         for example_idx, example in enumerate(data['test']):
             input_tensor = torch.tensor(example['input'], dtype=torch.uint8, device=self.device)
             output_tensor = torch.tensor(example['output'], dtype=torch.uint8, device=self.device)
+            input_tensor = one_hot_encode_grids(grid_to_seq(input_tensor)).to(self.device)
+            output_tensor = one_hot_encode_grids(grid_to_seq(output_tensor)).to(self.device)
             original_example = (input_tensor, output_tensor, torch.tensor(file_idx), False)  # False = not augmented
             self.examples.append(original_example)
             # # Generate augmented versions

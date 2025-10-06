@@ -3,7 +3,7 @@ from einops import rearrange
 import torch.nn.functional as F
 
 ARCMAXGRIDSIZE = 30
-
+ARCCHANNELS = 12  # 0-9 + PAD + EOS
 def grid_to_seq(grid: torch.Tensor, max_grid_size: int = ARCMAXGRIDSIZE) -> torch.Tensor:
     """
     Convert a grid to a padded grid with EOS markers.
@@ -37,7 +37,7 @@ def grid_to_seq(grid: torch.Tensor, max_grid_size: int = ARCMAXGRIDSIZE) -> torc
     return padded_grid
 
 
-def one_hot_encode_grids(grids: torch.Tensor, num_channels: int = 12) -> torch.Tensor:
+def one_hot_encode_grids(grids: torch.Tensor, num_channels: int = ARCCHANNELS) -> torch.Tensor:
     """
     One-hot encode grid tensors using einops.
     

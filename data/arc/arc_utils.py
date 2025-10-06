@@ -42,19 +42,19 @@ def one_hot_encode_grids(grids: torch.Tensor, num_channels: int = ARCCHANNELS) -
     One-hot encode grid tensors using einops.
     
     Args:
-        grids: Input tensor of shape (B, H, W) with integer values (any integer dtype)
+        grids: Input tensor of shape (H, W) with integer values (any integer dtype)
         num_channels: Number of channels for one-hot encoding (default: 12 for tokens 0-11)
     
     Returns:
-        One-hot encoded tensor of shape (B, num_channels, H, W)
+        One-hot encoded tensor of shape (num_channels, H, W)
     """
     # Explicit conversion is clearer and avoids warnings
     grids_long = grids.long()
-    
-    # One-hot encode: (B, H, W) -> (B, H, W, num_channels)
+
+    # One-hot encode: (H, W) -> (H, W, num_channels)
     one_hot = F.one_hot(grids_long, num_classes=num_channels)
-    
-    # Rearrange to channel-first: (B, H, W, C) -> (B, C, H, W)
-    one_hot = rearrange(one_hot, 'b h w c -> b c h w')
-    
+
+    # Rearrange to channel-first: (H, W, C) -> (C, H, W)
+    one_hot = rearrange(one_hot, 'h w c -> c h w')
+
     return one_hot

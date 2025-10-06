@@ -6,10 +6,6 @@ import torch.optim as optim
 from torchmetrics import Accuracy
 
 from transformers import AutoTokenizer
-
-import math
-import random
-import os
 from model.model_utils import *
 from model.replay_buffer import CausalReplayBuffer
 

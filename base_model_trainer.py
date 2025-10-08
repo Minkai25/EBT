@@ -38,6 +38,7 @@ from model.nlp.baseline_transformer import Baseline_Transformer_NLP
 from model.img.dit_t2i import Diffusion_Transformer_IMG_T2I
 from model.img.dit_denoise import Diffusion_Transformer_IMG_Denoise
 
+from model.arc.resnet import GridEBM_ARC
 from model.model_utils import save_frames, denormalize, load_image_encoder, center_crop_arr
 from inference.nlp.generate_text import generate_text, get_ppl
 from inference.vid.generate_video import generate_video
@@ -109,6 +110,8 @@ class ModelTrainer(L.LightningModule):
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
             ])
+        if self.hparams.modality == "ARC":
+            pass
 
         self.to_pil = ToPILImage()
         self.full_ds = None
@@ -143,6 +146,11 @@ class ModelTrainer(L.LightningModule):
                         self.model = Diffusion_Transformer_IMG_T2I(self.hparams) # this is bidirectional not AR
                     elif self.hparams.image_task == "denoising":
                         self.model = Diffusion_Transformer_IMG_Denoise(self.hparams) # this is bidirectional not AR
+                else:
+                    raise ValueError(f"Modality: {self.hparams.modality} not supported as a base model trainer model as of now")
+            elif self.hparams.model_name == "ebm":
+                if self.hparams.modality == "ARC":
+                    self.model = GridEBM_ARC(self.hparams)
                 else:
                     raise ValueError(f"Modality: {self.hparams.modality} not supported as a base model trainer model as of now")
             else:
@@ -330,6 +338,8 @@ class ModelTrainer(L.LightningModule):
             return self.configure_optimizers_vid()
         elif self.hparams.modality == "IMG":
             return self.configure_optimizers_img()
+        elif self.hparams.modality == "ARC":
+            return self.configure_optimizers_arc()
         else:
             raise NotImplementedError(f"Modality {self.hparams.modality} does not have configure optimizers supported yet")
         
@@ -366,7 +376,21 @@ class ModelTrainer(L.LightningModule):
                 'frequency': 1
             }
         }
-            
+    
+    def configure_optimizers_arc(self):
+        if self.hparams.model_name == "ebm":
+            alpha_param = self.model.alpha
+            other_params = [param for name, param in self.model.named_parameters() if not any(keyword in name for keyword in ['alpha'])]
+            assert len(other_params) > 1, "Could not gather model params correctly please investigate"
+
+            optimizer_parameters = [
+                {'params': alpha_param, 'weight_decay': 0.0, 'lr': self.hparams.mcmc_step_size_lr_multiplier*self.hparams.peak_learning_rate},  # No weight decay for alpha
+                {'params': other_params, 'weight_decay': self.hparams.weight_decay, 'lr': self.hparams.peak_learning_rate}  # Weight decay for other parameters
+            ]
+            return self.get_optimizer_scheduler_dict(optimizer_parameters)
+        else:
+            raise NotImplementedError(f"havent implemented configure optimizers for model {self.hparams.model_name}")
+        
     def configure_optimizers_nlp(self):
         if self.hparams.model_name == "ebt":
             alpha_param = self.model.alpha

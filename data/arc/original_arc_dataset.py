@@ -14,16 +14,14 @@ from arc_utils import grid_to_seq, one_hot_encode_grids
 class ARCTrainDataset(Dataset):
     """Dataset for ARC training examples"""
 
-    def __init__(self, train_dir, device: str,
+    def __init__(self, train_dir="data/arc/raw-data/ARC-AGI/data/training",
                  augmentation_factor: int = 0, max_retries_per_example: int = 0):
         """
         Args:
             json_files: List of JSON file paths
-            device: Device to place tensors on
             augmentation_factor: Number of augmented versions per original example
             max_retries_per_example: Maximum attempts to generate unique augmentations per example
         """
-        self.device = device
         self.augmentation_factor = augmentation_factor
         self.max_retries_per_example = max_retries_per_example
         self.examples = []
@@ -45,10 +43,10 @@ class ARCTrainDataset(Dataset):
             data = json.load(f)
 
         for example_idx, example in enumerate(data['train']):
-            input_tensor = torch.tensor(example['input'], dtype=torch.uint8, device=self.device)
-            output_tensor = torch.tensor(example['output'], dtype=torch.uint8, device=self.device)
-            input_tensor = one_hot_encode_grids(grid_to_seq(input_tensor)).to(self.device)
-            output_tensor = one_hot_encode_grids(grid_to_seq(output_tensor)).to(self.device)
+            input_tensor = torch.tensor(example['input'], dtype=torch.uint8)
+            output_tensor = torch.tensor(example['output'], dtype=torch.uint8)
+            input_tensor = one_hot_encode_grids(grid_to_seq(input_tensor))
+            output_tensor = one_hot_encode_grids(grid_to_seq(output_tensor))
             # Add original example
             original_example = (input_tensor, output_tensor, torch.tensor(file_idx), False)  # False = not augmented
             # example_hash = self._compute_hash(input_tensor, output_tensor)
@@ -56,10 +54,10 @@ class ARCTrainDataset(Dataset):
             self.examples.append(original_example)
 
         for example_idx, example in enumerate(data['test']):
-            input_tensor = torch.tensor(example['input'], dtype=torch.uint8, device=self.device)
-            output_tensor = torch.tensor(example['output'], dtype=torch.uint8, device=self.device)
-            input_tensor = one_hot_encode_grids(grid_to_seq(input_tensor)).to(self.device)
-            output_tensor = one_hot_encode_grids(grid_to_seq(output_tensor)).to(self.device)
+            input_tensor = torch.tensor(example['input'], dtype=torch.uint8)
+            output_tensor = torch.tensor(example['output'], dtype=torch.uint8)
+            input_tensor = one_hot_encode_grids(grid_to_seq(input_tensor))
+            output_tensor = one_hot_encode_grids(grid_to_seq(output_tensor))  
             original_example = (input_tensor, output_tensor, torch.tensor(file_idx), False)  # False = not augmented
             self.examples.append(original_example)
             # # Generate augmented versions

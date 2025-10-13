@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from typing import Tuple, Set
 import numpy as np
 # import hashlib
-from arc_utils import grid_to_seq, one_hot_encode_grids
+from .arc_utils import grid_to_seq, one_hot_encode_grids
 
 
 class ARCTrainDataset(Dataset):

@@ -107,6 +107,8 @@ def main(args):
     elif args.modality == "IMG":
         args.backbone_type = "vae" # always uses vae
         assert args.embedding_dim != 0, "must define embedding dim for IMG models"
+    elif args.modality == "ARC":
+        pass
     else:
         raise ValueError(f"please add support for modality {args.modality}")
     
@@ -459,6 +461,24 @@ if __name__ == '__main__':
     parser.add_argument("--infer_recurse_diffusion_n_times", help="inference number of times to recurse diffusion on its own outputs, helpful for denoising OOD data. did work better than increase steps", type = int, default=0)
 
     #MODEL AND ARCHITECTURE ##################################################################
+
+    # ARC grid-based EBM specific ############################################
+
+    parser.add_argument("--grid_height", help="height of the grid for ARC tasks", type=int, default=30)
+
+    parser.add_argument("--grid_width", help="width of the grid for ARC tasks", type=int, default=30)
+
+    parser.add_argument("--grid_channels", help="number of channels in the grid for ARC tasks", type=int, default=12)
+
+    parser.add_argument("--grid_hidden_dim", help="hidden dimension for ARC grid model", type=int, default=384)
+
+    parser.add_argument("--grid_num_res_layers", help="number of residual layers in ARC grid model", type=int, default=3)
+
+    parser.add_argument("--grid_num_indices", help="number of indices for ARC grid model embedding", type=int, default=400)
+
+    parser.add_argument("--grid_index_embed_dim", help="embedding dimension for indices in ARC grid model", type=int, default=64)
+
+    parser.add_argument("--grid_mlp_hidden_dim", help="hidden dimension for MLP in ARC grid model", type=int, default=128)
 
     # transformer specific ############################################
 

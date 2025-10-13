@@ -4,6 +4,10 @@ from torch.nn import functional as F
 import pytorch_lightning as L
 import torch.optim as optim
 from torchmetrics import Accuracy
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import numpy as np
+import wandb
 
 from transformers import AutoTokenizer
 from model.model_utils import *
@@ -135,7 +139,7 @@ class GridEBM_ARC(L.LightningModule):
             self.hparams.update(hparams)
         else:
             self.hparams.update(vars(hparams))
-        
+
         self.model = GridEBM(
             height=self.hparams.grid_height,
             width=self.hparams.grid_width,
@@ -149,6 +153,61 @@ class GridEBM_ARC(L.LightningModule):
 
         self.alpha = nn.Parameter(torch.tensor(float(self.hparams.mcmc_step_size)), requires_grad=self.hparams.mcmc_step_size_learnable)
         self.langevin_dynamics_noise_std = nn.Parameter(torch.tensor(float(self.hparams.langevin_dynamics_noise)), requires_grad=False) # if using self.hparams.langevin_dynamics_noise_learnable this will be turned on in warm_up_finished func
+
+        # Define ARC color scheme
+        # 0, 1: padding tokens (light gray, lighter gray)
+        # 2: black
+        # 3-11: ARC standard colors
+        self.arc_colormap = self._create_arc_colormap()
+
+    def _create_arc_colormap(self):
+        """Create a colormap for ARC grids"""
+        colors = [
+            '#E0E0E0',  # 0: padding (grey)
+            '#FFFFFF',  # 1: padding (white)
+            '#000000',  # 2: black
+            '#0074D9',  # 3: blue
+            '#FF4136',  # 4: red
+            '#2ECC40',  # 5: green
+            '#FFDC00',  # 6: yellow
+            '#9B59B6',  # 7: purple
+            '#F012BE',  # 8: magenta
+            '#FF851B',  # 9: orange
+            '#7FDBFF',  # 10: cyan/teal
+            '#870C25',  # 11: brown/maroon
+        ]
+        return mcolors.ListedColormap(colors)
+
+    # def visualize_grid(self, inp, output, initial_pred, final_pred, idx):
+    #     """
+    #     Visualize input, ground truth, initial prediction, and final prediction
+
+    #     Args:
+    #         inp: Input grid (H, W) - class indices
+    #         output: Ground truth output grid (H, W) - class indices
+    #         initial_pred: Initial prediction grid (H, W) - class indices
+    #         final_pred: Final prediction grid (H, W) - class indices
+    #         idx: Sample index for identification
+
+    #     Returns:
+    #         matplotlib figure
+    #     """
+    #     fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+
+    #     grids = [inp, output, initial_pred, final_pred]
+    #     titles = ['Input', 'Ground Truth', 'Initial Prediction', 'Final Prediction']
+
+    #     for ax, grid, title in zip(axes, grids, titles):
+    #         im = ax.imshow(grid, cmap=self.arc_colormap, vmin=0, vmax=11, interpolation='nearest')
+    #         ax.set_title(title, fontsize=12, fontweight='bold')
+    #         ax.set_xticks([])
+    #         ax.set_yticks([])
+    #         ax.grid(True, which='both', color='white', linewidth=0.5, alpha=0.3)
+
+    #     plt.suptitle(f'ARC Grid Visualization - Sample {idx}', fontsize=14, fontweight='bold')
+    #     plt.tight_layout()
+
+    #     return fig
     def forward(self, inp, output, index, learning=True): 
         predicted_distributions = []
         predicted_energies = []
@@ -192,7 +251,7 @@ class GridEBM_ARC(L.LightningModule):
         #         mcmc_steps.append(step)
 
         with torch.set_grad_enabled(True):
-            for i, mcmc_step in enumerate(self.hparams.mcmc_steps): 
+            for i in range(self.hparams.mcmc_num_steps): 
                 if self.hparams.no_mcmc_detach:
                     predicted_tokens.requires_grad_()
                 else: # default, do detach
@@ -218,7 +277,7 @@ class GridEBM_ARC(L.LightningModule):
                 predicted_energies.append(energy_preds)
                 
                 if self.hparams.truncate_mcmc:  #retain_graph defaults to create_graph value here; if learning is true then create_graph else dont (inference)
-                    if i == (self.hparams.mcmc_steps - 1):
+                    if i == (self.hparams.mcmc_num_steps - 1):
                         predicted_tokens_grad = torch.autograd.grad([energy_preds.sum()], [predicted_tokens], create_graph=learning)[0]
                     else:
                         predicted_tokens_grad = torch.autograd.grad([energy_preds.sum()], [predicted_tokens], create_graph=False)[0]
@@ -249,7 +308,8 @@ class GridEBM_ARC(L.LightningModule):
 
         return predicted_distributions, predicted_energies
 
-    def forward_loss_wrapper(self, inp, output, index, phase="train"):
+    def forward_loss_wrapper(self, batch, phase="train"):
+        inp, output, index = batch
         no_randomness = False if phase == "train" else True
         # if not no_randomness and self.mcmc_replay_buffer: # dont do this when doing val/testing
         #     all_tokens = x['input_ids'].squeeze(dim=1)
@@ -271,6 +331,21 @@ class GridEBM_ARC(L.LightningModule):
         output_classes = output.argmax(dim=1) # B, H, W
         initial_loss = F.cross_entropy(initial_prediction, output_classes, reduction='mean')
         final_reconstruction_loss = F.cross_entropy(final_prediction, output_classes, reduction='mean')
+        
+        # # Accuracy metrics
+        # with torch.no_grad():
+        #     # Predicted classes from logits
+        #     initial_pred_classes = initial_prediction.argmax(dim=1)  # B, H, W
+        #     final_pred_classes = final_prediction.argmax(dim=1)      # B, H, W
+
+        #     # Per-element accuracy (averaged over all elements in batch)
+        #     initial_acc_per_element = (initial_pred_classes == output_classes).float().mean()
+        #     final_acc_per_element = (final_pred_classes == output_classes).float().mean()
+
+        #     # Per-grid exact-match accuracy (fraction of grids with all elements correct)
+        #     B = output_classes.shape[0]
+        #     initial_acc_per_grid_exact = (initial_pred_classes == output_classes).view(B, -1).all(dim=1).float().mean()
+        #     final_acc_per_grid_exact = (final_pred_classes == output_classes).view(B, -1).all(dim=1).float().mean()
         
         #pure logging things (no function for training)
         initial_pred_energies = predicted_energies[0].mean().detach()
@@ -305,5 +380,65 @@ class GridEBM_ARC(L.LightningModule):
             'loss': final_reconstruction_loss,
             'initial_loss' : initial_loss,
             'initial_final_pred_energies_gap': initial_final_pred_energies_gap,
+            # Accuracy logs
+            # 'initial_acc_per_element': initial_acc_per_element,
+            # 'final_acc_per_element': final_acc_per_element,
+            # 'initial_acc_per_grid_exact': initial_acc_per_grid_exact,
+            # 'final_acc_per_grid_exact': final_acc_per_grid_exact,
         }
+
+        # Visualization during validation
+        if phase == "valid":
+            # Randomly select one sample from the batch to visualize
+            batch_size = inp.shape[0]
+            random_idx = torch.randint(0, batch_size, (1,)).item()
+
+            # Convert one-hot encoded tensors to class indices and create individual visualizations
+            grids_to_viz = {
+                'input_image': inp[random_idx].argmax(dim=0).cpu().numpy(),
+                'ground_truth_image': output[random_idx].argmax(dim=0).cpu().numpy(),
+                'initial_pred_image': initial_prediction[random_idx].argmax(dim=0).cpu().numpy(),
+                'final_pred_image': final_prediction[random_idx].argmax(dim=0).cpu().numpy()
+            }
+
+            # Create individual visualizations for each grid
+            for key, grid in grids_to_viz.items():
+                fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+                ax.imshow(grid, cmap=self.arc_colormap, vmin=0, vmax=11, interpolation='nearest')
+                ax.set_title(key.replace('_', ' ').title(), fontsize=12, fontweight='bold')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.grid(True, which='both', color='white', linewidth=0.5, alpha=0.3)
+                plt.tight_layout()
+
+                # Convert to tensor for logging
+                fig.canvas.draw()
+                img_array = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+                img_array = img_array.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+                # Convert RGBA to RGB by dropping alpha channel
+                img_array = img_array[:, :, :3]
+                log_dict[key] = torch.from_numpy(img_array).permute(2, 0, 1).float() / 255.0
+
+                plt.close(fig)
+            
+            # Log accuracies
+            with torch.no_grad():
+                # Predicted classes from logits
+                initial_pred_classes = initial_prediction.argmax(dim=1)  # B, H, W
+                final_pred_classes = final_prediction.argmax(dim=1)      # B, H, W
+
+                # Per-element accuracy (averaged over all elements in batch)
+                initial_acc_per_element = (initial_pred_classes == output_classes).float().mean()
+                final_acc_per_element = (final_pred_classes == output_classes).float().mean()
+
+                # Per-grid exact-match accuracy (fraction of grids with all elements correct)
+                B = output_classes.shape[0]
+                initial_acc_per_grid_exact = (initial_pred_classes == output_classes).view(B, -1).all(dim=1).float().mean()
+                final_acc_per_grid_exact = (final_pred_classes == output_classes).view(B, -1).all(dim=1).float().mean()
+            log_dict.update({
+                'initial_acc_per_element': initial_acc_per_element,
+                'final_acc_per_element': final_acc_per_element,
+                'initial_acc_per_grid_exact': initial_acc_per_grid_exact,
+                'final_acc_per_grid_exact': final_acc_per_grid_exact
+            })
         return log_dict

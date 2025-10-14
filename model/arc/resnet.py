@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.nn.modules.normalization import RMSNorm
 import pytorch_lightning as L
 import torch.optim as optim
 from torchmetrics import Accuracy
@@ -151,6 +152,7 @@ class GridEBM_ARC(L.LightningModule):
             mlp_hidden_dim=self.hparams.grid_mlp_hidden_dim
         )
 
+        self.RMSnorm = RMSNorm(normalized_shape=[self.hparams.grid_channels, self.hparams.grid_height, self.hparams.grid_width], eps=1e-6, elementwise_affine=False)
         self.alpha = nn.Parameter(torch.tensor(float(self.hparams.mcmc_step_size)), requires_grad=self.hparams.mcmc_step_size_learnable)
         self.langevin_dynamics_noise_std = nn.Parameter(torch.tensor(float(self.hparams.langevin_dynamics_noise)), requires_grad=False) # if using self.hparams.langevin_dynamics_noise_learnable this will be turned on in warm_up_finished func
 
@@ -293,7 +295,8 @@ class GridEBM_ARC(L.LightningModule):
                     raise ValueError("NaN or Inf gradients detected during MCMC.")
                 
                 predicted_tokens = predicted_tokens - alpha * predicted_tokens_grad # do this to tokens will be unnormalize prob dist convert to prob dist after  
-                
+                if self.hparams.use_rmsnorm and i != (self.hparams.mcmc_num_steps - 1): # dont do rmsnorm on final step
+                    predicted_tokens = self.RMSnorm(predicted_tokens)
                 # if self.hparams.absolute_clamp != 0.0:
                 #     predicted_tokens = torch.clamp(predicted_tokens, min = -self.hparams.absolute_clamp, max = self.hparams.absolute_clamp)
                 

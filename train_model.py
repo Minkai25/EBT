@@ -17,9 +17,9 @@ import math
 from tqdm import tqdm
 import json
 from pytorch_lightning.utilities.rank_zero import rank_zero_only
-from pytorch_lightning.plugins.environments import SLURMEnvironment
-import signal
-import tempfile
+# from pytorch_lightning.plugins.environments import SLURMEnvironment
+# import signal
+# import tempfile
 
 
 # from torch.utils.tensorboard import SummaryWriter # need to implement, which involves maybe changing the forward function
@@ -77,9 +77,9 @@ def main(args):
         print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
 
     # Set temp directory for lightning checkpointing on preemption
-    temp_dir = "./logs/temp/"
-    os.makedirs(temp_dir, exist_ok=True)
-    tempfile.tempdir = temp_dir
+    # temp_dir = "./logs/temp/"
+    # os.makedirs(temp_dir, exist_ok=True)
+    # tempfile.tempdir = temp_dir
 
     # txt_logger is no longer supported [deprecated]
     # txt_logger = text_logger.setup_custom_logger(log_filename = args.debug_log_filename, print_console = True) # this used to be set to args.print_logs but is default true now and print_logs is not used
@@ -182,8 +182,8 @@ def main(args):
         torch.set_float32_matmul_precision(args.set_matmul_precision)
     
     checkpoint_filename = "epoch={epoch}-step={step}-" + args.checkpoint_monitor_string + "={"+args.checkpoint_monitor_string+":.4f}"
-    # checkpoint_callback = ModelCheckpoint(monitor=args.checkpoint_monitor_string, mode = args.checkpoint_monitor_mode, save_top_k=args.save_top_k_ckpts, save_last = True, dirpath=f"./logs/checkpoints/{args.run_name}_{dt_string}_", filename=checkpoint_filename, verbose=True)
-    checkpoint_callback = ModelCheckpoint(monitor=args.checkpoint_monitor_string, mode = args.checkpoint_monitor_mode, save_top_k=args.save_top_k_ckpts, save_last = True, dirpath=f"./logs/checkpoints/{args.run_name}_{os.environ.get('SLURM_JOBID')}_", filename=checkpoint_filename, verbose=True)    
+    checkpoint_callback = ModelCheckpoint(monitor=args.checkpoint_monitor_string, mode = args.checkpoint_monitor_mode, save_top_k=args.save_top_k_ckpts, save_last = True, dirpath=f"./logs/checkpoints/{args.run_name}_{dt_string}_", filename=checkpoint_filename, verbose=True)
+    # checkpoint_callback = ModelCheckpoint(monitor=args.checkpoint_monitor_string, mode = args.checkpoint_monitor_mode, save_top_k=args.save_top_k_ckpts, save_last = True, dirpath=f"./logs/checkpoints/{args.run_name}_{os.environ.get('SLURM_JOBID')}_", filename=checkpoint_filename, verbose=True)    
     for name, param in model_trainer.model.named_parameters():
         if not param.requires_grad:
             print(f"Non-trainable parameters: {name} with shape {param.shape}")
@@ -269,8 +269,9 @@ def set_trainer(args, wandb_logger, checkpoint_callback, stage = "train"):
     limit_val_batches = 0 if args.overfit_batches > 0 else args.limit_val_batches
     val_check_interval = args.val_check_interval if args.val_check_interval == 1.0 else args.val_check_interval * args.accumulate_grad_batches  #NOTE the reason we mult by args.accumulate_grad_batches is because of this bug https://github.com/Lightning-AI/pytorch-lightning/issues/12205
     limit_test_batches = args.limit_test_batches if args.limit_test_batches == 1 else args.limit_test_batches * args.accumulate_grad_batches
+    # plugins = [SLURMEnvironment(requeue_signal=signal.SIGTERM)] if args.is_slurm_run else []
     trainer = L.Trainer(
-        default_root_dir=f"./logs/checkpoints/{args.run_name}_{os.environ.get('SLURM_JOBID')}_/preempts",
+        # default_root_dir=f"./logs/checkpoints/{args.run_name}_{os.environ.get('SLURM_JOBID')}_/preempts",
         accelerator="auto",
         devices = args.gpus,
         num_nodes=args.num_nodes,
@@ -280,7 +281,7 @@ def set_trainer(args, wandb_logger, checkpoint_callback, stage = "train"):
         enable_model_summary=args.log_model_archi,
         callbacks = [checkpoint_callback, ModelSummary(max_depth=-1)],
         strategy = args.distributed_strategy, 
-        plugins=[SLURMEnvironment(requeue_signal=signal.SIGTERM)],
+        # plugins=plugins,
         enable_checkpointing=True,
         fast_dev_run = args.fast_dev_run,
         num_sanity_val_steps = args.val_sanity,
@@ -489,6 +490,8 @@ if __name__ == '__main__':
     parser.add_argument("--grid_index_embed_dim", help="embedding dimension for indices in ARC grid model", type=int, default=64)
 
     parser.add_argument("--grid_mlp_hidden_dim", help="hidden dimension for MLP in ARC grid model", type=int, default=128)
+
+    parser.add_argument("--use_rmsnorm", help="whether to RMS norm each prediction (except for the last)", action="store_true", default=False)
 
     # transformer specific ############################################
 

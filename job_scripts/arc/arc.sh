@@ -1,9 +1,9 @@
 ### ADDITIONAL RUN INFO ###
 #SBATCH --array=0
-#SBATCH --time=4:00:00
+#SBATCH --time=16:00:00
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
-
+### Support for requeueing on preemption ###
 ### LOG INFO ###
 #SBATCH --job-name=arc_v1
 #SBATCH --output=logs/slurm/arc/%x_%A-%a.log
@@ -17,12 +17,13 @@ module purge
 module load python/3.12.11-fasrc01
 source ~/.bashrc
 mamba activate hrm
-lr=(0.001)
-alpha=(10)
+lr=(0.00001 0.00005)
+alpha=(10 10)
+# remember to set rms norm if desired
 # alpha_lr=(1500)
 
 python train_model.py \
-	--run_name ${RUN_NAME}_${lr[${SLURM_ARRAY_TASK_ID}]} \
+	--run_name ${RUN_NAME}_lr_${lr[${SLURM_ARRAY_TASK_ID}]}_steps_${alpha[${SLURM_ARRAY_TASK_ID}]}_bs_32_RMSNorm \
 	--modality "ARC" \
 	--model_name "ebm" \
 	--normalize_initial_condition \
@@ -51,4 +52,5 @@ python train_model.py \
 	--log_model_archi \
 	--log_gradients \
 	--wandb_watch \
+	--use_rmsnorm
 	${SLURM_ARRAY_TASK_ID:+--is_slurm_run}

@@ -215,7 +215,7 @@ class GridEBM_ARC(L.LightningModule):
         predicted_energies = []
 
         predicted_tokens = torch.randn(output.shape, device=self.device) 
-        
+        predicted_distributions.append(predicted_tokens)
         alpha = self.alpha
         # alpha = torch.clamp(self.alpha, min=0.0001)
         # alpha = torch.clamp(self.alpha, min=0.0001)

@@ -27,6 +27,7 @@ from data.nlp.ai2arc_dataloader import AI2ArcDataset
 from data.nlp.planbench_dataloader import PlanBenchDataset
 from data.nlp.synthetic_dataset import NLPSyntheticDataset
 from data.arc.original_arc_dataset import ARCTrainDataset
+from data.arc.arc_dataset_no_post_train import ARCTrainDataset_no_post_train, ARCValDataset_no_post_train
 
 from model.vid.ebt import EBT_VID
 from model.nlp.ebt import EBT_NLP
@@ -541,6 +542,12 @@ class ModelTrainer(L.LightningModule):
             elif self.hparams.dataset_name == "arc":
                 self.train_ds = ARCTrainDataset()
                 self.val_ds = ARCTrainDataset() # no val split so just use train split for now
+            elif self.hparams.dataset_name == "arc_train": # This dataset splits the demonstration and output examples but uses the easier, training dataset
+                self.train_ds = ARCTrainDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training"])
+                self.val_ds = ARCValDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training"])
+            elif self.hparams.dataset_name == "arc_val": # This dataset splits the demonstration and output examples but uses the validation dataset
+                self.train_ds = ARCTrainDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training", "data/arc/raw-data/ARC-AGI/data/validation"])
+                self.val_ds = ARCValDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/validation"])
             else:
                 raise NotImplementedError("Haven't implemented this dataset yet")
             print(f"{self.hparams.dataset_name} length of train_dataset: {len(self.train_ds)} and val_dataset: {len(self.val_ds)}")

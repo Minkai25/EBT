@@ -390,10 +390,8 @@ class GridEBM_ARC(L.LightningModule):
             # 'final_acc_per_grid_exact': final_acc_per_grid_exact,
         }
         # Log image to wandb
-        print(self.trainer.global_step)
         is_update_step = (self.trainer.fit_loop.epoch_loop.batch_progress.current.completed + 1) % self.trainer.accumulate_grad_batches == 0
         if self.trainer.global_step % self.hparams.log_image_every_n_steps == 0 and is_update_step and phase == "train":
-            print("Reached here with global step:", self.trainer.global_step)
             # Randomly select one sample from the batch to visualize
             batch_size = inp.shape[0]
             random_idx = torch.randint(0, batch_size, (1,)).item()

@@ -546,8 +546,8 @@ class ModelTrainer(L.LightningModule):
                 self.train_ds = ARCTrainDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training"])
                 self.val_ds = ARCValDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training"])
             elif self.hparams.dataset_name == "arc_val": # This dataset splits the demonstration and output examples but uses the validation dataset
-                self.train_ds = ARCTrainDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training", "data/arc/raw-data/ARC-AGI/data/validation"])
-                self.val_ds = ARCValDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/validation"])
+                self.train_ds = ARCTrainDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training", "data/arc/raw-data/ARC-AGI/data/evaluation"])
+                self.val_ds = ARCValDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/evaluation"])
             else:
                 raise NotImplementedError("Haven't implemented this dataset yet")
             print(f"{self.hparams.dataset_name} length of train_dataset: {len(self.train_ds)} and val_dataset: {len(self.val_ds)}")

@@ -156,6 +156,8 @@ class GridEBM_ARC(L.LightningModule):
         self.alpha = nn.Parameter(torch.tensor(float(self.hparams.mcmc_step_size)), requires_grad=self.hparams.mcmc_step_size_learnable)
         self.langevin_dynamics_noise_std = nn.Parameter(torch.tensor(float(self.hparams.langevin_dynamics_noise)), requires_grad=False) # if using self.hparams.langevin_dynamics_noise_learnable this will be turned on in warm_up_finished func
 
+        self.ignore_index_loss = 0 if self.hparams.ignore_padding_tokens_in_loss else -100
+
         # Define ARC color scheme
         # 0, 1: padding tokens (light gray, lighter gray)
         # 2: black
@@ -332,9 +334,9 @@ class GridEBM_ARC(L.LightningModule):
         initial_prediction = predicted_distributions[0] # B, C, H, W
         final_prediction = predicted_distributions[-1] # B, C, H, W
         output_classes = output.argmax(dim=1) # B, H, W
-        initial_loss = F.cross_entropy(initial_prediction, output_classes, reduction='mean')
-        final_reconstruction_loss = F.cross_entropy(final_prediction, output_classes, reduction='mean')
-        
+        initial_loss = F.cross_entropy(initial_prediction, output_classes, reduction='mean', ignore_index=self.ignore_index_loss)
+        final_reconstruction_loss = F.cross_entropy(final_prediction, output_classes, reduction='mean', ignore_index=self.ignore_index_loss)
+        # print("Indexes used in this batch: ", index, "given phase: ", phase)
         # # Accuracy metrics
         # with torch.no_grad():
         #     # Predicted classes from logits

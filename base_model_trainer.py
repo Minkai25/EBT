@@ -41,6 +41,7 @@ from model.img.dit_t2i import Diffusion_Transformer_IMG_T2I
 from model.img.dit_denoise import Diffusion_Transformer_IMG_Denoise
 
 from model.arc.resnet import GridEBM_ARC
+from model.arc.ebt import EBT_ARC
 from model.model_utils import save_frames, denormalize, load_image_encoder, center_crop_arr
 from inference.nlp.generate_text import generate_text, get_ppl
 from inference.vid.generate_video import generate_video
@@ -133,6 +134,8 @@ class ModelTrainer(L.LightningModule):
                         self.model = EBT_IMG_Denoise(self.hparams)
                     else:
                         raise ValueError(f"task type: {self.hparams.image_task} not supported in base model trainer as a model as of now")
+                elif self.hparams.modality == "ARC":
+                    self.model = EBT_ARC(self.hparams)
                 else:
                     raise ValueError(f"Modality: {self.hparams.modality} not supported as a base model trainer model as of now")
             elif self.hparams.model_name == "baseline_transformer":
@@ -380,7 +383,7 @@ class ModelTrainer(L.LightningModule):
         }
     
     def configure_optimizers_arc(self):
-        if self.hparams.model_name == "ebm":
+        if self.hparams.model_name == "ebm" or self.hparams.model_name == "ebt":
             alpha_param = self.model.alpha
             other_params = [param for name, param in self.model.named_parameters() if not any(keyword in name for keyword in ['alpha'])]
             assert len(other_params) > 1, "Could not gather model params correctly please investigate"

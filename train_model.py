@@ -317,7 +317,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--model_name", help="model_type/name", default='ebt')
 
-    parser.add_argument("--model_size", help="model size, is used to set num_transformer_blocks, multiheaded_attention_heads, and embedding_dim", choices=model_sizes.keys(), default='xxs')
+    parser.add_argument("--model_size", help="model size, is used to set num_transformer_blocks, multiheaded_attention_heads, and embedding_dim", choices=model_sizes.keys(), default='')
 
     #NOTE not all below hparams are implemented for all models, so please check before using one     
 
@@ -492,6 +492,10 @@ if __name__ == '__main__':
     parser.add_argument("--grid_mlp_hidden_dim", help="hidden dimension for MLP in ARC grid model", type=int, default=128)
 
     parser.add_argument("--use_rmsnorm", help="whether to RMS norm each prediction (except for the last)", action="store_true", default=False)
+
+    parser.add_argument("--ignore_padding_tokens_in_loss", help="whether to ignore padding tokens in loss calculation for ARC grid model", action="store_true", default=False)
+
+    parser.add_argument("--arc_mlp_ratio", help="ratio for mlp hidden dim to embedding dim in ARC grid model", type=float, default=4.0)
 
     # transformer specific ############################################
 

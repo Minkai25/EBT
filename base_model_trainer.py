@@ -28,6 +28,8 @@ from data.nlp.planbench_dataloader import PlanBenchDataset
 from data.nlp.synthetic_dataset import NLPSyntheticDataset
 from data.arc.original_arc_dataset import ARCTrainDataset
 from data.arc.arc_dataset_no_post_train import ARCTrainDataset_no_post_train, ARCValDataset_no_post_train
+from data.arc.trm.puzzle_dataset import PuzzleDataset, PuzzleDatasetConfig
+from data.arc.trm.original_puzzle_dataset import OriginalPuzzleDataset, OriginalPuzzleDatasetConfig
 
 from model.vid.ebt import EBT_VID
 from model.nlp.ebt import EBT_NLP
@@ -42,6 +44,8 @@ from model.img.dit_denoise import Diffusion_Transformer_IMG_Denoise
 
 from model.arc.resnet import GridEBM_ARC
 from model.arc.ebt import EBT_ARC
+
+from model.arc.trm_model import TinyRecursiveReasoningModel_ACTV1, TinyRecursiveReasoningModel_ACTV1Config, TrainState
 from model.model_utils import save_frames, denormalize, load_image_encoder, center_crop_arr
 from inference.nlp.generate_text import generate_text, get_ppl
 from inference.vid.generate_video import generate_video
@@ -158,6 +162,33 @@ class ModelTrainer(L.LightningModule):
                     self.model = GridEBM_ARC(self.hparams)
                 else:
                     raise ValueError(f"Modality: {self.hparams.modality} not supported as a base model trainer model as of now")
+            elif self.hparams.model_name == "trm":
+                config = {
+                    "batch_size": self.hparams.batch_size_per_device,
+                    "seq_len": 900,
+                    "puzzle_emb_ndim": 512,
+                    "num_puzzle_identifiers": 10 ** 6,  # Upper bound
+                    "vocab_size": 12,
+                    "H_cycles": 3,
+                    "L_cycles": 6,
+                    "H_layers": 0,
+                    "L_layers": 2,
+                    "hidden_size": 512,
+                    "expansion": 4,
+                    "num_heads": 8,
+                    "pos_encodings": "rope",
+                    "halt_max_steps": 16,
+                    "halt_exploration_prob": 0.1,
+                    "mlp_t": False,
+                    "puzzle_emb_len": 16,
+                    "no_ACT_continue": True,
+                    }
+                self.model = TinyRecursiveReasoningModel_ACTV1(config)
+                # self.train_state = TrainState(
+                #     step=0,
+                #     carry=None,
+                #     total_steps=self.hparams.max_scheduling_steps,
+                # )
             else:
                 raise ValueError(f"do not recognize model name: {self.hparams.model_name}")
         
@@ -393,6 +424,12 @@ class ModelTrainer(L.LightningModule):
                 {'params': other_params, 'weight_decay': self.hparams.weight_decay, 'lr': self.hparams.peak_learning_rate}  # Weight decay for other parameters
             ]
             return self.get_optimizer_scheduler_dict(optimizer_parameters)
+        elif self.hparams.model_name == "trm":
+            params = [param for _, param in self.model.named_parameters()]
+            optimizer_parameters = [
+                {'params': params, 'weight_decay': self.hparams.weight_decay, 'lr': self.hparams.peak_learning_rate}  # Weight decay for other parameters
+            ]
+            return self.get_optimizer_scheduler_dict(optimizer_parameters)
         else:
             raise NotImplementedError(f"havent implemented configure optimizers for model {self.hparams.model_name}")
         
@@ -551,9 +588,60 @@ class ModelTrainer(L.LightningModule):
             elif self.hparams.dataset_name == "arc_val": # This dataset splits the demonstration and output examples but uses the validation dataset
                 self.train_ds = ARCTrainDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/training", "data/arc/raw-data/ARC-AGI/data/evaluation"])
                 self.val_ds = ARCValDataset_no_post_train(data_dirs = ["data/arc/raw-data/ARC-AGI/data/evaluation"])
+            elif self.hparams.dataset_name == "trm":
+                self.train_ds = PuzzleDataset(
+                    config=PuzzleDatasetConfig(
+                        # seed=33, # 33 is default,
+                        dataset_paths=[os.path.join(os.environ['SCRATCH'], 'ydu_lab/Lab/minli/arc1concept-aug-100')],
+                        # global_batch_size=self.hparams.batch_size_per_device,
+                        # test_set_mode=False,
+                        # epochs_per_iter=1,
+                        # rank=0,
+                        # num_replicas=1,
+                        ),
+                    split='train',
+                    )
+                self.val_ds = PuzzleDataset(
+                    config=PuzzleDatasetConfig(
+                        # seed=33, # 33 is default,
+                        dataset_paths=[os.path.join(os.environ['SCRATCH'], 'ydu_lab/Lab/minli/arc1concept-aug-100')],
+                        # global_batch_size=self.hparams.batch_size_per_device,
+                        # test_set_mode=True,
+                        # epochs_per_iter=1,
+                        # rank=0,
+                        # num_replicas=1,
+                        ),
+                    split='test',
+                    )
+            elif self.hparams.dataset_name == "trm_original":
+                self.train_ds = OriginalPuzzleDataset(
+                    config=OriginalPuzzleDatasetConfig(
+                        seed=33, # 33 is default,
+                        dataset_paths=[os.path.join(os.environ['SCRATCH'], 'ydu_lab/Lab/minli/arc1concept-aug-100')],
+                        global_batch_size=self.hparams.batch_size_per_device,
+                        test_set_mode=False,
+                        epochs_per_iter=1,
+                        rank=0,
+                        num_replicas=1,
+                        ),
+                    split='train',
+                    )
+                self.val_ds = OriginalPuzzleDataset(
+                    config=OriginalPuzzleDatasetConfig(
+                        seed=33, # 33 is default,
+                        dataset_paths=[os.path.join(os.environ['SCRATCH'], 'ydu_lab/Lab/minli/arc1concept-aug-100')],
+                        global_batch_size=self.hparams.batch_size_per_device,
+                        test_set_mode=True,
+                        epochs_per_iter=1,
+                        rank=0,
+                        num_replicas=1,
+                        ),
+                    split='test',
+                    )
             else:
                 raise NotImplementedError("Haven't implemented this dataset yet")
-            print(f"{self.hparams.dataset_name} length of train_dataset: {len(self.train_ds)} and val_dataset: {len(self.val_ds)}")
+            if self.hparams.dataset_name not in ["trm"]: # This is an iterable dataset so len() not implemented
+                print(f"{self.hparams.dataset_name} length of train_dataset: {len(self.train_ds)} and val_dataset: {len(self.val_ds)}")
             
         # Assign test dataset for use in dataloader(s)
         elif stage == "test":
@@ -604,13 +692,16 @@ class ModelTrainer(L.LightningModule):
         return collate_fn
     
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.hparams.batch_size_per_device, num_workers=self.hparams.num_workers, persistent_workers=True, collate_fn = self.get_collate_fn(), pin_memory = True, drop_last = False, shuffle = not self.hparams.no_shuffle, prefetch_factor=self.hparams.prefetch_factor)
+        batch_size = None if self.hparams.dataset_is_iterable else self.hparams.batch_size_per_device
+        return DataLoader(self.train_ds, batch_size=batch_size, num_workers=self.hparams.num_workers, persistent_workers=True, collate_fn = self.get_collate_fn(), pin_memory = True, drop_last = self.hparams.drop_last_train, shuffle = not self.hparams.no_shuffle, prefetch_factor=self.hparams.prefetch_factor)
 
     def val_dataloader(self):
-        return DataLoader(self.val_ds, batch_size=self.hparams.batch_size_per_device, num_workers=self.hparams.num_workers, persistent_workers=True, collate_fn = self.get_collate_fn(), pin_memory = True, drop_last = False, shuffle = False, prefetch_factor=self.hparams.prefetch_factor)
+        batch_size = None if self.hparams.dataset_is_iterable else self.hparams.batch_size_per_device
+        return DataLoader(self.val_ds, batch_size=batch_size, num_workers=self.hparams.num_workers, persistent_workers=True, collate_fn = self.get_collate_fn(), pin_memory = True, drop_last = False, shuffle = False, prefetch_factor=self.hparams.prefetch_factor)
 
     def test_dataloader(self):
-        return DataLoader(self.test_ds, batch_size=self.hparams.batch_size_per_device, num_workers=self.hparams.num_workers, persistent_workers=True, collate_fn = self.get_collate_fn(), pin_memory = True, drop_last = False, shuffle = False, prefetch_factor=self.hparams.prefetch_factor)
+        batch_size = None if self.hparams.dataset_is_iterable else self.hparams.batch_size_per_device
+        return DataLoader(self.test_ds, batch_size=batch_size, num_workers=self.hparams.num_workers, persistent_workers=True, collate_fn = self.get_collate_fn(), pin_memory = True, drop_last = False, shuffle = False, prefetch_factor=self.hparams.prefetch_factor)
 
     def log_metrics(self, metrics_dict, phase, log_torchmetrics = True):
         # first log torchmetrics if there are any

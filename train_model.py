@@ -637,6 +637,10 @@ if __name__ == '__main__':
 
     parser.add_argument("--check_val_every_n_epoch", help="how many epochs to wait before doing validation. is useful when you have a small dataset and dont want to do validation every time", type=int, default=1)
 
+    parser.add_argument("--dataset_is_iterable", help="whether the dataset is iterable, i.e. does not have __len__ implemented.", action="store_true", default=False)
+
+    parser.add_argument("--drop_last_train", help="whether to drop the last incomplete batch in training dataloader", action="store_true", default=False)
+
     #TESTING / INFERENCE#########################################################
 
     parser.add_argument("--run_testing_after_training", help="evaluate on test dataset. by default is off since repo is mostly pre-training, and may not work :/", action="store_true", default=False)

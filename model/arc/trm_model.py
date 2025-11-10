@@ -272,7 +272,7 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
         
     def _pad_batch(self, batch, pad_size):
         # Convert dtype
-        batch = {k: v.astype(np.int32) for k, v in batch.items()}
+        batch = {k: v.to(torch.int32) for k, v in batch.items()}
 
         # # Convert ignore label IDs
         # if self.metadata.ignore_label_id is not None:
@@ -286,10 +286,16 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
             "labels": IGNORE_LABEL_ID,
             "puzzle_identifiers": BLANK_IDENTIFIER_ID,
         }
-        batch = {k: np.pad(v, ((0, pad_size), ) + ((0, 0), ) * (v.ndim - 1), constant_values=pad_values[k]) for k, v in batch.items()}
 
-        # To tensor
-        return {k: torch.from_numpy(v) for k, v in batch.items()}
+        # Use torch.nn.functional.pad to keep tensors on same device
+        padded_batch = {}
+        for k, v in batch.items():
+            # Build padding tuple: (left, right) for each dimension from last to first
+            # We want to pad (0, pad_size) on the first dimension, and (0, 0) on all others
+            pad_tuple = (0, 0) * (v.ndim - 1) + (0, pad_size)
+            padded_batch[k] = torch.nn.functional.pad(v, pad_tuple, value=pad_values[k])
+
+        return padded_batch
 
     def valid_forward(self, carry: TinyRecursiveReasoningModel_ACTV1Carry, batch: Dict[str, torch.Tensor]) -> Tuple[TinyRecursiveReasoningModel_ACTV1Carry, Dict[str, torch.Tensor]]:
         # Always run to max steps during evaluation

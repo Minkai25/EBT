@@ -1,6 +1,8 @@
 from typing import Tuple, List, Dict, Any, Sequence
 from dataclasses import dataclass
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import math
 import torch
 import copy
@@ -252,7 +254,26 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
         self.config = TinyRecursiveReasoningModel_ACTV1Config(**config_dict)
         self.inner = TinyRecursiveReasoningModel_ACTV1_Inner(self.config)
         self.carry = None # Will be initialized in forward_loss_wrapper
+        self.arc_colormap = self._create_arc_colormap()
 
+    def _create_arc_colormap(self):
+        """Create a colormap for ARC grids"""
+        colors = [
+            '#E0E0E0',  # 0: padding (grey)
+            '#FFFFFF',  # 1: padding (white)
+            '#000000',  # 2: black
+            '#0074D9',  # 3: blue
+            '#FF4136',  # 4: red
+            '#2ECC40',  # 5: green
+            '#FFDC00',  # 6: yellow
+            '#9B59B6',  # 7: purple
+            '#F012BE',  # 8: magenta
+            '#FF851B',  # 9: orange
+            '#7FDBFF',  # 10: cyan/teal
+            '#870C25',  # 11: brown/maroon
+        ]
+        return mcolors.ListedColormap(colors)
+    
     @property
     def puzzle_emb(self):
         return self.inner.puzzle_emb
@@ -399,7 +420,6 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
         else:
             raise ValueError(f"Unknown phase: {phase}")
         
-
         with torch.no_grad():
             # Preds
             outputs["preds"] = torch.argmax(outputs["logits"], dim=-1)
@@ -411,21 +431,22 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
 
             is_correct = mask & (torch.argmax(outputs["logits"], dim=-1) == labels)
             seq_is_correct = is_correct.sum(-1) == loss_counts
-            
+            # breakpoint()
             # Metrics (halted)
             valid_metrics = new_carry.halted & (loss_counts > 0)
             metrics = {
-                "count": valid_metrics.sum(),
-                
-                "accuracy":       torch.where(valid_metrics, (is_correct.to(torch.float32) / loss_divisor).sum(-1), 0).sum(),
-                "exact_accuracy": (valid_metrics & seq_is_correct).sum(),
-
+                # "count": valid_metrics.sum(),
+                # "accuracy":       torch.where(valid_metrics, (is_correct.to(torch.float32) / loss_divisor).sum(-1), 0).sum(),
+                # "exact_accuracy": (valid_metrics & seq_is_correct).sum(),
                 "q_halt_accuracy": (valid_metrics & ((outputs["q_halt_logits"] >= 0) == seq_is_correct)).sum(),
                 "steps":          torch.where(valid_metrics, new_carry.steps, 0).sum(),
+                "count" : valid_metrics.sum() / len(valid_metrics), 
+                "accuracy" : (is_correct.to(torch.float32) / loss_divisor).sum(-1).mean(), # Not requiring sequence to be finished for token accuracy
+                "exact_accuracy" : (valid_metrics & seq_is_correct).float().mean(),
+                "exact_accuracy_unfinished" : seq_is_correct.float().mean(),
             }
 
         # Losses
-
         lm_loss = (stablemax_cross_entropy(outputs["logits"], labels, ignore_index=IGNORE_LABEL_ID, valid_mask=mask) / loss_divisor).sum()
         q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum")
         metrics.update({
@@ -449,9 +470,38 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
             "count": metrics["count"].detach(),
             "accuracy": metrics["accuracy"].detach(),
             "exact_accuracy": metrics["exact_accuracy"].detach(),
+            "exact_accuracy_unfinished": metrics["exact_accuracy_unfinished"].detach(),
             "steps": metrics["steps"].detach(),
             "q_halt_accuracy": metrics["q_halt_accuracy"].detach(),
         }
+        # Add in logging in validation
+        if phase == "valid":
+            random_idx = torch.randint(0, batch["inputs"].shape[0], (1,)).item()
+            grids_to_viz = {
+                "input_image": batch["inputs"][random_idx].cpu(),
+                "output_image": labels[random_idx].cpu(),
+                "pred_image": outputs["preds"][random_idx].cpu(),
+            }
+            # Create individual visualizations for each grid
+            for key, grid in grids_to_viz.items():
+                grid_2d = grid.view(30, 30)
+                fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+                ax.imshow(grid_2d, cmap=self.arc_colormap, vmin=0, vmax=11, interpolation='nearest')
+                ax.set_title(key.replace('_', ' ').title(), fontsize=12, fontweight='bold')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.grid(True, which='both', color='white', linewidth=0.5, alpha=0.3)
+                plt.tight_layout()
+
+                # Convert to tensor for logging
+                fig.canvas.draw()
+                img_array = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+                img_array = img_array.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+                # Convert RGBA to RGB by dropping alpha channel
+                img_array = img_array[:, :, :3]
+                things_to_log[key] = torch.from_numpy(img_array).permute(2, 0, 1).float() / 255.0
+                plt.close(fig)
+            # Create 
         # breakpoint()
         return things_to_log
 

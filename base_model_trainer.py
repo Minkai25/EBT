@@ -638,6 +638,56 @@ class ModelTrainer(L.LightningModule):
                         ),
                     split='test',
                     )
+            elif self.hparams.dataset_name == "trm_test":
+                self.train_ds = PuzzleDataset(
+                    config=PuzzleDatasetConfig(
+                        # seed=33, # 33 is default,
+                        dataset_paths=["data/arc1concept-aug-2"],
+                        # global_batch_size=self.hparams.batch_size_per_device,
+                        # test_set_mode=False,
+                        # epochs_per_iter=1,
+                        # rank=0,
+                        # num_replicas=1,
+                        ),
+                    split='train',
+                    )
+                self.val_ds = PuzzleDataset(
+                    config=PuzzleDatasetConfig(
+                        # seed=33, # 33 is default,
+                        dataset_paths=["data/arc1concept-aug-2"],
+                        # global_batch_size=self.hparams.batch_size_per_device,
+                        # test_set_mode=True,
+                        # epochs_per_iter=1,
+                        # rank=0,
+                        # num_replicas=1,
+                        ),
+                    split='test',
+                    )
+            elif self.hparams.dataset_name == "trm_small":
+                self.train_ds = PuzzleDataset(
+                    config=PuzzleDatasetConfig(
+                        # seed=33, # 33 is default,
+                        dataset_paths=[os.path.join(os.environ['SCRATCH'], 'ydu_lab/Lab/minli/arc1concept-aug-10')],
+                        # global_batch_size=self.hparams.batch_size_per_device,
+                        # test_set_mode=False,
+                        # epochs_per_iter=1,
+                        # rank=0,
+                        # num_replicas=1,
+                        ),
+                    split='train',
+                    )
+                self.val_ds = PuzzleDataset(
+                    config=PuzzleDatasetConfig(
+                        # seed=33, # 33 is default,
+                        dataset_paths=[os.path.join(os.environ['SCRATCH'], 'ydu_lab/Lab/minli/arc1concept-aug-10')],
+                        # global_batch_size=self.hparams.batch_size_per_device,
+                        # test_set_mode=True,
+                        # epochs_per_iter=1,
+                        # rank=0,
+                        # num_replicas=1,
+                        ),
+                    split='test',
+                    )
             else:
                 raise NotImplementedError("Haven't implemented this dataset yet")
             if self.hparams.dataset_name not in ["trm"]: # This is an iterable dataset so len() not implemented

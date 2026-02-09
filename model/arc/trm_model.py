@@ -398,6 +398,7 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
         # print(batch['inputs'].shape)
         # print(batch['labels'].shape)
         # print(batch['puzzle_identifiers'].shape)
+        # breakpoint()
         if self.carry is None:
             self.carry = self.initial_carry(batch)
 
@@ -446,13 +447,15 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
                 "exact_accuracy_unfinished" : seq_is_correct.float().mean(),
             }
 
-        # Losses
-        lm_loss = (stablemax_cross_entropy(outputs["logits"], labels, ignore_index=IGNORE_LABEL_ID, valid_mask=mask) / loss_divisor).sum()
-        q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum")
+        lm_loss = (stablemax_cross_entropy(outputs["logits"], labels, ignore_index=IGNORE_LABEL_ID, valid_mask=mask) / loss_divisor).sum() / carry_batch_size # Average over batch
+
+        q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum") / carry_batch_size  # Average over batch
+
         metrics.update({
             "lm_loss": lm_loss.detach(),
             "q_halt_loss": q_halt_loss.detach(),
         })
+        # breakpoint()
         # Q continue (bootstrapping target loss); Alexia: This fits Q-learning, but seems totally unecessary
         q_continue_loss = 0
         if "target_q_continue" in outputs:

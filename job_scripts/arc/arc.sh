@@ -1,8 +1,8 @@
 ### ADDITIONAL RUN INFO ###
 #SBATCH --array=0-1
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=1
 ### Support for requeueing on preemption ###
 ### LOG INFO ###
 #SBATCH --job-name=arc_v1
@@ -17,7 +17,7 @@ module purge
 module load python/3.12.11-fasrc01
 source ~/.bashrc
 mamba activate hrm
-lr=(0.0001 0.00001)
+lr=(0.00001 0.000001)
 # alpha=(10 10 10)
 # remember to set rms norm if desired
 # alpha_lr=(1500)
@@ -57,24 +57,25 @@ lr=(0.0001 0.00001)
 # 	--ignore_padding_tokens_in_loss \
 # 	${SLURM_ARRAY_TASK_ID:+--is_slurm_run}
 python train_model.py \
-  --run_name lr_${lr[${SLURM_ARRAY_TASK_ID}]}_bs_64_clip_grad_500 \
+  --run_name overfit_test_10_batches_16_lr_${lr[${SLURM_ARRAY_TASK_ID}]}_pzlr_0.0001 \
   --modality "ARC" \
-  --model_name "trm" \
+  --model_name "trm_puzzle" \
   --gpus "-1" \
-  --check_val_every_n_epoch 1000 \
+  --check_val_every_n_epoch 100 \
   --peak_learning_rate ${lr[${SLURM_ARRAY_TASK_ID}]} \
-  --batch_size_per_device 64 \
-  --accumulate_grad_batches 4 \
-  --gradient_clip_val 500.0 \
+  --peak_puzzle_learning_rate 0.0001 \
+  --batch_size_per_device 8 \
+  --accumulate_grad_batches 8 \
+  --overfit_batches 10 \
+  --no_shuffle \
   --weight_decay 0.1 \
-  --max_steps 5000000 \
-  --warm_up_steps 10000 \
-  --dataset_name "trm" \
+  --warm_up_steps 1000 \
+  --dataset_name "trm_small" \
   --num_workers 4 \
-  --wandb_project "trm" \
+  --wandb_project "trm_overfit" \
   --log_model_archi \
   --log_gradients \
   --wandb_watch \
-  --save_top_k_ckpts 2 \
+  --save_top_k_ckpts 0 \
   # --no_shuffle \
   # --dataset_is_iterable

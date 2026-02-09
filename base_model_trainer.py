@@ -162,12 +162,11 @@ class ModelTrainer(L.LightningModule):
                     self.model = GridEBM_ARC(self.hparams)
                 else:
                     raise ValueError(f"Modality: {self.hparams.modality} not supported as a base model trainer model as of now")
-            elif self.hparams.model_name == "trm":
+            elif self.hparams.model_name == "trm" or self.hparams.model_name == "trm_puzzle":
                 config = {
                     "batch_size": self.hparams.batch_size_per_device,
                     "seq_len": 900,
                     "puzzle_emb_ndim": 512,
-                    "num_puzzle_identifiers": 10 ** 6,  # Upper bound
                     "vocab_size": 12,
                     "H_cycles": 3,
                     "L_cycles": 6,
@@ -183,6 +182,10 @@ class ModelTrainer(L.LightningModule):
                     "puzzle_emb_len": 16,
                     "no_ACT_continue": True,
                     }
+                if self.hparams.model_name == "trm":
+                    config["num_puzzle_identifiers"] = 10 ** 6  # Upper bound
+                else:
+                    config["num_puzzle_identifiers"] = 15000  # For puzzle dataset
                 self.model = TinyRecursiveReasoningModel_ACTV1(config)
                 # self.train_state = TrainState(
                 #     step=0,
@@ -428,6 +431,16 @@ class ModelTrainer(L.LightningModule):
             params = [param for _, param in self.model.named_parameters()]
             optimizer_parameters = [
                 {'params': params, 'weight_decay': self.hparams.weight_decay, 'lr': self.hparams.peak_learning_rate}  # Weight decay for other parameters
+            ]
+            return self.get_optimizer_scheduler_dict(optimizer_parameters)
+        elif self.hparams.model_name == "trm_puzzle":
+            puzzle_params = self.model.inner.puzzle_emb.parameters()
+            other_params = [param for name, param in self.model.named_parameters() if not any(keyword in name for keyword in ['puzzle_emb'])]
+            # print(puzzle_params)
+            # print(other_params)
+            optimizer_parameters = [
+                {'params': puzzle_params, 'weight_decay': self.hparams.weight_decay, 'lr': self.hparams.peak_puzzle_learning_rate},  # Weight decay for puzzle embeddings
+                {'params': other_params, 'weight_decay': self.hparams.weight_decay, 'lr': self.hparams.peak_learning_rate}  # Weight decay for other parameters
             ]
             return self.get_optimizer_scheduler_dict(optimizer_parameters)
         else:
@@ -690,7 +703,7 @@ class ModelTrainer(L.LightningModule):
                     )
             else:
                 raise NotImplementedError("Haven't implemented this dataset yet")
-            if self.hparams.dataset_name not in ["trm"]: # This is an iterable dataset so len() not implemented
+            if self.hparams.dataset_name not in ["trm_original"]: # This is an iterable dataset so len() not implemented
                 print(f"{self.hparams.dataset_name} length of train_dataset: {len(self.train_ds)} and val_dataset: {len(self.val_ds)}")
             
         # Assign test dataset for use in dataloader(s)

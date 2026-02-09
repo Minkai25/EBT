@@ -497,6 +497,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--arc_mlp_ratio", help="ratio for mlp hidden dim to embedding dim in ARC grid model", type=float, default=4.0)
 
+    parser.add_argument("--peak_puzzle_learning_rate", help="peak learning rate for puzzle embeddings", type=float, default=0.01)
+
     # transformer specific ############################################
 
     parser.add_argument("--context_length", help="context length for AR models, i.e. for language model (commonly 256) or video model (commonly 16)", type=int, default=0)
